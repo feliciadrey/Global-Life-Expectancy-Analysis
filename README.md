@@ -5,7 +5,7 @@ Comprehensive exploratory data analysis (EDA) of global life expectancy (2001–
 ---
 
 ## Overview
-This project was developed for the **Data Mining & Visualization** course (2nd semester) and focuses on analyzing global life expectancy trends and their socioeconomic determinants. The work combines in-depth statistical exploration, interactive visualizations, and clear communication of insights through a public-facing infographic.
+This project was developed for the **Data Mining & Visualization** course (2nd semester) group final project and focuses on analyzing global life expectancy trends and their socioeconomic determinants. The work combines in-depth statistical exploration, interactive visualizations, and clear communication of insights through a public-facing infographic.
 
 **Deliverables include:**
 - **EDA in R Markdown** – Trend analysis, factor correlations, and statistical summaries.
