@@ -1,0 +1,516 @@
+---
+title: "AOL Data Mining"
+author: "Group 5 LG09"
+---
+**DATA PREPROCESSING**
+```{r}
+#Loading necessary libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(plotly)
+library(ggcorrplot)
+library(ggiraph)
+library(leaflet)
+```
+
+```{r}
+#Load the dataset
+df <- read.csv("dataset.csv", h=T)
+#Check dataset summary
+head(df)
+summary(df)
+```
+
+```{r}
+#Renaming columns for more consistency
+df <- df %>%
+  rename(
+    Country = Country.Name,
+    Year = Year,
+    LifeExpectancy = Life.Expectancy.World.Bank,
+    Undernourishment = Prevelance.of.Undernourishment,
+    HealthExpenditure = Health.Expenditure..,
+    EducationExpenditure = Education.Expenditure..,
+    CountryCode = Country.Code
+  )
+colnames(df)
+```
+
+```{r}
+#Check for NA values of each column
+navalues <- df %>%
+  summarise_all(~sum(is.na(.)))
+navalues
+```
+
+
+```{r}
+#Drop all data with life expectancy and co2 missing values
+df <- df %>%
+  drop_na(LifeExpectancy, CO2)
+
+#Median imputation for numerical missing values
+df <- df %>%
+  mutate(across(
+    c(Undernourishment, HealthExpenditure, EducationExpenditure, Unemployment, Sanitation),
+    ~ ifelse(is.na(.), median(., na.rm = TRUE), .)
+  ))
+#Drop corruption column as it will not be used
+df <- subset(df, select = -Corruption)
+#Data is succesfully cleaned
+navalues <- df %>%
+  summarise_all(~sum(is.na(.)))
+navalues
+```
+
+```{r}
+#Check whether there is duplicate country for the same year
+duplicated_countries_year <- df[duplicated(paste(df$Country, df$Year)) | 
+                                  duplicated(paste(df$Country, df$Year), fromLast = T), ]
+num_duplicated_countries_year <- nrow(duplicated_countries_year)
+num_duplicated_countries_year #result 0 = no duplicated value
+```
+
+```{r}
+#Check for inconsistency in region naming
+unique_regions <- unique(df$Region)
+unique_regions #result = all the regions are unique, which means the naming is already consistent (no adjustment needed)
+```
+**DATA EXPLORATION & Visualization**
+```{r}
+#Calculate the distribution of region
+region_distribution <- df %>%
+  count(Region) %>%
+  mutate(Percentage = n/sum(n) * 100)
+
+#Pie chart
+ggplot(region_distribution, aes(x = "", y = Percentage, fill = Region)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  #scale_fill_manual(values = continent_colors) +
+  labs(title = "Distribution of Countries by Region", y = "Percentage", x = NULL) +
+  theme_minimal()+
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank(),
+        panel.grid = element_blank())+geom_text(aes(label = paste0(round(Percentage, 1),"%")), position = position_stack(vjust = 0.5), color = "white", size = 3)
+ 
+```
+
+
+```{r}
+region_abbreviations <- c("East Asia & Pacific" = "EA & P", 
+                          "Europe & Central Asia" = "EU & CA",
+                          "Latin America & Caribbean" = "LA & C",
+                          "Middle East & North Africa" = "ME & N.Af",
+                          "South Asia" = "S. Asia",
+                          "North America" ="N.Am",
+                          "Sub-Saharan Africa" = "SS Africa")
+
+#Distribution of life expectancy across regions
+ggplot(df, aes(x = Region, y = LifeExpectancy, fill=Region)) +
+  geom_boxplot(alpha = 0.5, color = "black", outlier.color = "red") +
+  labs(x = "Region", y = "Life Expectancy", title = "Boxplot of Life Expectancy by Region")+
+  scale_x_discrete(labels=region_abbreviations)
+  
+  
+```
+
+```{r}
+#Interactive version
+ggplotly(
+  ggplot(df, aes(x = Region, y = LifeExpectancy, fill=Region)) +
+           geom_boxplot(alpha = 0.5, color = "black") +
+           labs(x = "Region", y = "Life Expectancy (Age)", title = "Boxplot of Life Expectancy by Region")+
+           scale_x_discrete(labels = region_abbreviations))
+
+```
+
+
+
+```{r}
+#World average life expectancy over the years
+#Calculate the mean life expectancy, groupby year
+average_life_expectancy <- df %>%
+  group_by(Year) %>%
+  summarise(average_life_expectancy = mean(LifeExpectancy))
+#Line plot to show the trend
+ggplot(average_life_expectancy, aes(x = Year, y = average_life_expectancy)) +
+  geom_line(color = "navy", size=0.8) +
+  geom_text(aes(label = round(average_life_expectancy,1)), hjust = -0.1, vjust = -0.8, size = 3, color = "black") +
+  labs(x = "Year", y = "Average Life Expectancy", title = "Average Annual Life Expectancy") +
+  theme_minimal()
+
+```
+```{r}
+#Filter for selected years only
+selected_years <- c(2001, 2006, 2011, 2016, 2019)
+filtered_life_expectancy <- average_life_expectancy %>%
+  filter(Year %in% selected_years)
+
+#Line plot
+ggplot(filtered_life_expectancy, aes(x = Year, y = average_life_expectancy)) +
+  geom_line(color = "#DBBDBB", size = 3) +
+  geom_text(aes(label = round(average_life_expectancy, 1)), 
+            hjust = 1, vjust = -2, size = 4, color = "black") +
+  labs(x = "Year", y = "Average Life Expectancy", title = "Global Life Expectancy Overtime") +
+  geom_point(color ="#DBBDBB", size=5)+
+  scale_x_continuous(breaks = selected_years) +
+  theme_minimal()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+```
+
+```{r}
+#Global average life expectancy for the most recent year in the dataset
+#Filter to include only the data for the most recent year
+latest_year_data <- df %>%
+  filter(Year == max(df$Year))
+
+#Calculate the average life expectancy
+average_life_expectancy_latest_year <- mean(latest_year_data$LifeExpectancy)
+average_life_expectancy_latest_year
+
+```
+
+```{r}
+#Average Life expectancy for each income group
+life_expectancy_income <- df %>%
+  group_by(IncomeGroup) %>%
+  summarise(life_expectancy_income = mean(LifeExpectancy))
+#Sort from low to higher income
+life_expectancy_income$IncomeGroup <- factor(life_expectancy_income$IncomeGroup, levels = c("Low income", "Lower middle income", "Upper middle income", "High income"))
+#Bar plot
+ggplot(life_expectancy_income, aes(x = IncomeGroup, y =life_expectancy_income, fill=IncomeGroup)) +
+  geom_bar(stat = "identity", fill="navy") +
+  labs(x = "Income Group", y = "Average Life Expectancy", title = "Average Life Expectancy by Income Group") +
+  theme_bw()
+```
+
+```{r}
+#Average Life expectancy for each region
+life_expectancy_region <- df %>%
+  group_by(Region) %>%
+  summarise(life_expectancy_region= mean(LifeExpectancy))
+#Bar plot
+ggplot(life_expectancy_region, aes(x = Region, y = life_expectancy_region, fill=Region)) +
+  geom_bar(stat = "identity", fill="navy") +
+  labs(x = "Region", y = "Average Life Expectancy", title = "Average Life Expectancy by Region") +
+  theme_bw()
+
+```
+```{r}
+#Regional life expectancy based on income groups : grouped bar plot
+ggplot(df, aes(x = Region, y = LifeExpectancy, fill = IncomeGroup)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  labs(title = "Regional Life Expectancy based on Income Groups",
+       x = "Region",
+       y = "Life Expectancy",
+       fill = "Income Group") +
+  theme(
+    plot.title = element_text(color = "black", size = 15, hjust = 0.5),
+  )+
+  scale_x_discrete(labels = region_abbreviations)
+```
+
+```{r}
+#Correlation map for numerical variables
+corr_matrix <- df %>%
+  select(LifeExpectancy, HealthExpenditure, EducationExpenditure, CO2, Unemployment, Sanitation, Injuries,Communicable,NonCommunicable) %>%
+  cor(use = "complete.obs")
+ggcorrplot(corr_matrix, lab = TRUE)
+
+```
+
+
+```{r}
+#Scatter plot for Health Expenditure and Life Expectancy
+ggplot(df, aes(x = HealthExpenditure, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "Health Expenditure (% of GDP)", y = "Life Expectancy", title = "Relationship Between Health Expenditure and Life Expectancy")+
+  theme_classic()
+
+
+```
+```{r}
+#Scatter plot for Health Expenditure and Life Expectancy by Region
+ggplot(df, aes(x = HealthExpenditure, y = LifeExpectancy, color = Region)) +
+  geom_point(alpha = 0.7) +
+  labs(x = "Health Expenditure (% of GDP)", y = "Life Expectancy", title = "Health Expenditure and Life Expectancy by Region") +
+  theme_classic() +
+  scale_color_manual(values = c("East Asia & Pacific" = "gold",
+                                "Europe & Central Asia" = "steelblue",
+                                "Latin America & Caribbean" = "maroon",
+                                "Middle East & North Africa" = "grey",
+                                "North America" = "royalblue",
+                                "South Asia" = "violet",
+                                "Sub-Saharan Africa" = "darkseagreen"))
+
+```
+```{r}
+#Health expenditure overtime
+#Groupby and calculate mean
+health_expenditure_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_health_expenditure = mean(HealthExpenditure, na.rm = TRUE))
+
+#Line plot
+ggplot(health_expenditure_yearly, aes(x = Year, y = mean_health_expenditure)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global Health Expenditure Over Time",
+       x = "Year",
+       y = "Health Expenditure (%)") +
+  theme_minimal()
+```
+```{r}
+#Education expenditure overtime
+#Groupby and calculate mean
+health_expenditure_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_health_expenditure = mean(EducationExpenditure, na.rm = TRUE))
+
+#Line plot
+ggplot(health_expenditure_yearly, aes(x = Year, y = mean_health_expenditure)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global Education Expenditure Over Time",
+       x = "Year",
+       y = "Education Expenditure (%)") +
+  theme_minimal()
+```
+
+```{r}
+#Scatter plot for education expenditure and life expectancy
+ggplot(df, aes(x = EducationExpenditure, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "Education Expenditure (% of GDP)", y = "Life Expectancy", title = "Relationship Between Education Expenditure and Life Expectancy")+
+  theme_classic()
+#Per region
+ggplot(df, aes(x = EducationExpenditure, y = LifeExpectancy, color = Region)) +
+  geom_point(alpha = 0.7) +
+  labs(x = "Education Expenditure (% of GDP)", y = "Life Expectancy", title = "Relationship Between Education Expenditure and Life Expectancy") +
+  theme_classic()
+
+
+```
+
+
+
+```{r}
+#Scatter plot for undernourishment and life expectancy
+ggplot(df, aes(x = Undernourishment, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "Prevalence of Undernourishment (% of the population)", y = "Life Expectancy", title = "Relationship between Prevalence of Undernourishment and Life Expectancy")+
+  theme_classic()
+
+#Global undernourishment overtime
+#Groupby and calculate mean
+#Group by and calculate mean undernourishment
+undernourishment_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_undernourishment = mean(Undernourishment, na.rm = TRUE))
+
+#Line plot
+ggplot(undernourishment_yearly, aes(x = Year, y = mean_undernourishment)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global Undernourishment Over Time",
+       x = "Year",
+       y = "Undernourishment") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+```{r}
+#Scatter plot for co2 and life expectancy
+ggplot(df, aes(x = CO2, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "Emissions of CO2", y = "Life Expectancy", title = "Relationship between Emissions of CO2 and Life Expectancy")+
+  theme_classic()
+
+#CO2 overtime
+#Groupby and calculate mean
+co2_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_co2 = mean(CO2, na.rm = TRUE))
+
+#Line plot
+ggplot(co2_yearly, aes(x = Year, y = mean_co2)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global Emissions of CO2 Over Time",
+       x = "Year",
+       y = "Emissions of CO2") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+```{r}
+#CO2 emission trend in Indonesia over the years
+co2_indonesia <- df %>% filter(Country=="Indonesia")
+
+ggplot(co2_indonesia, aes(x=Year, y=CO2))+
+  geom_line(color="skyblue")+
+  labs(x="Year", y="CO2 Emission", title="Indonesia's CO2 Emission throughout Years")+
+  theme_minimal()
+```
+
+```{r}
+#Scatter plot for underemployment and life expectancy
+ggplot(df, aes(x = Unemployment, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "Unemployment", y = "Life Expectancy", title = "Relationship between Unemployment and Life Expectancy")+
+  theme_classic()
+
+#co2 overtime
+#Groupby and calculate mean
+unemployment_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_unemployment = mean(Unemployment, na.rm = TRUE))
+
+#Line plot
+ggplot(unemployment_yearly, aes(x = Year, y = mean_unemployment)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global Unemployment Over Time",
+       x = "Year",
+       y = "Unemployment") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+
+```{r}
+#Scatter plot for sanitation and life expectancy
+ggplot(df, aes(x = Sanitation, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "Sanitation", y = "Life Expectancy", title = "Relationship between Sanitation and Life Expectancy")+
+  theme_classic()
+
+#Sanitation overtime
+#Groupby and calculate mean
+sanitation_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_sanitation = mean(Sanitation, na.rm = TRUE))
+
+#Line plot
+ggplot(sanitation_yearly, aes(x = Year, y = mean_sanitation)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global Sanitation Over Time",
+       x = "Year",
+       y = "Sanitation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r}
+#Scatter plot for Injuries and life expectancy
+ggplot(df, aes(x = Injuries, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "Injuries", y = "Life Expectancy", title = "Relationship between Injuries and Life Expectancy")+
+  theme_classic()
+
+#Injuries overtime
+#Groupby and calculate mean
+injuries_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_injuries = mean(Injuries, na.rm = TRUE))
+
+#Line plot
+ggplot(injuries_yearly, aes(x = Year, y = mean_injuries)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global Injuries Over Time", x = "Year",y = "Injuries") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+#Scatter plot for Communicable and life expectancy
+ggplot(df, aes(x = Communicable, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "Communicable", y = "Life Expectancy", title = "Relationship between Communicable and Life Expectancy")+
+  theme_classic()
+
+#Communicable overtime
+#Groupby and calculate mean
+communicable_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_communicable = mean(Communicable, na.rm = TRUE))
+
+#Line plot
+ggplot(communicable_yearly, aes(x = Year, y = mean_communicable)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global Burden of Communicable Diseases: Adjusted Life Years (DALYs) Over Time",
+       x = "Year", y = "Burden of Disease (DALYS lost)")+
+  theme_minimal()
+cor.test(df$Communicable, df$LifeExpectancy)
+
+```
+```{r}
+#Calculate Communicable for each income group
+df_diseasesbyincome <- df %>%
+  group_by(IncomeGroup) %>%
+  summarize(Communicable = mean(Communicable))
+#Sort
+df_diseasesbyincome$IncomeGroup <- factor(df_diseasesbyincome$IncomeGroup, levels = c("Low income", "Lower middle income", "Upper middle income", "High income"))
+#Barplot
+ggplot(df_diseasesbyincome, aes(x = IncomeGroup, y = Communicable)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Prevalence of Communicable Diseases by Income Group",
+       x = "Income Group",
+       y = "DALYs for Communicable Diseases") +
+  theme_minimal()+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+df_diseasesbyincome
+```
+
+```{r}
+#Scatter plot for NonCommunicable and life expectancy
+ggplot(df, aes(x = NonCommunicable, y = LifeExpectancy)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm") +
+  labs(x = "NonCommunicable", y = "Life Expectancy", title = "Relationship between NonCommunicable and Life Expectancy")+
+  theme_classic()
+
+#NonCommunicable overtime
+#Groupby and calculate mean
+noncommunicable_yearly <- df %>%
+  group_by(Year) %>%
+  summarise(mean_noncommunicable = mean(NonCommunicable, na.rm = TRUE))
+
+#Line plot
+ggplot(noncommunicable_yearly, aes(x = Year, y = mean_noncommunicable)) +
+  geom_line(color = "skyblue") +
+  geom_point(color = "skyblue") +
+  labs(title = "Global NonCommunicable Over Time",
+       x = "Year",
+       y = "NonCommunicable") +
+  theme_minimal() 
+
+```
+
+
+```{r}
+model <- lm(LifeExpectancy ~ Undernourishment + HealthExpenditure + EducationExpenditure + CO2 +Unemployment+ Sanitation+ Injuries+ Communicable+NonCommunicable, data = df)
+summary(model)
+
+```
+
