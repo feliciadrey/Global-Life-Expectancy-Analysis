@@ -1,4 +1,4 @@
-# Global-Life-Expectancy-Analysis
+# Global Life Expectancy Analysis
 
 Comprehensive exploratory data analysis (EDA) of global life expectancy (2001–2019) using R, featuring an interactive Shiny dashboard and an infographic summarizing key findings.
 
