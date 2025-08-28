@@ -14,7 +14,7 @@ This project was developed for the **Data Mining & Visualization** course (2nd s
 - **Documentation** – Feature-by-feature guide to the dashboard
 
 
-## 📊 Data
+## Data
 
 The dataset combines information from **World Bank Open Data** and **Our World in Data**, covering **174 countries** from **2000 to 2019**.  
 It contains socioeconomic, health, and environmental indicators relevant to the analysis of global life expectancy.
@@ -46,13 +46,13 @@ It contains socioeconomic, health, and environmental indicators relevant to the 
 | **DALYs – Non-Communicable** | Years of healthy life lost due to non-communicable diseases |
 
 
-## 🚀 Features
+## Features
 - Interactive filtering by **region**, **income group**, and factor
 - Linear regression with dynamic charts
 - Key indicators including average life expectancy and total data entries
 - Dashboard design optimized for exploration and presentation
 
-## 🛠️ Tools & Technologies
+## Tools & Technologies
 - **R** – data analysis and visualization
 - **R Markdown** – reporting and documentation
 - **Shiny** – interactive dashboard
